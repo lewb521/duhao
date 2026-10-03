@@ -142,9 +142,6 @@
   .b-skill{ width:54px; height:54px; border-radius:10px; font-size:15px; }
   .b-skill small{ font-size:10px; opacity:.75; color:#c9a86a; }
   .b-skill[disabled]{ opacity:.35; }
-  @media (hover:hover) and (pointer:fine){
-    #controls{ display:none; }
-  }
   .hint{
     position:fixed; left:50%; bottom:8px; transform:translateX(-50%); z-index:14;
     font-size:12px; letter-spacing:.12em; color:#8b8372; opacity:0; transition:opacity .6s;
@@ -242,6 +239,75 @@ function flash(text, opt){
   }, dur*1000);
 }
 
+/* ---------- 音效（Web Audio 合成，无需外部文件） ---------- */
+let actx = null, master = null;
+function ensureAudio(){
+  if(!actx){
+    try{
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      master = actx.createGain(); master.gain.value = 0.5; master.connect(actx.destination);
+    }catch(e){ actx = null; }
+  }
+  if(actx && actx.state === 'suspended'){ actx.resume(); }
+}
+function tone(freq, dur, type, vol, slideTo){
+  if(!actx) return;
+  const t = actx.currentTime;
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type || 'square'; o.frequency.setValueAtTime(freq, t);
+  if(slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t+dur);
+  g.gain.setValueAtTime(vol || 0.15, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t+dur);
+}
+function noise(dur, vol, filterFreq){
+  if(!actx) return;
+  const t = actx.currentTime;
+  const len = Math.max(1, Math.floor(actx.sampleRate * dur));
+  const buf = actx.createBuffer(1, len, actx.sampleRate);
+  const d = buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i] = (Math.random()*2-1) * (1 - i/len);
+  const src = actx.createBufferSource(); src.buffer = buf;
+  const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = filterFreq || 1200;
+  const g = actx.createGain(); g.gain.setValueAtTime(vol || 0.2, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+  src.connect(f); f.connect(g); g.connect(master); src.start(t);
+}
+const SFX = {
+  swing(){ noise(0.10, 0.16, 2600); tone(720, 0.08, 'sawtooth', 0.05, 200); },
+  slash(){ noise(0.08, 0.14, 3400); tone(1500, 0.07, 'square', 0.05, 320); },
+  hit(){ noise(0.09, 0.30, 900); tone(160, 0.12, 'square', 0.24, 55); },
+  skill1(){ tone(520, 0.16, 'sawtooth', 0.12, 1000); noise(0.10, 0.12, 3200); },
+  skill2(){ tone(300, 0.20, 'sawtooth', 0.16, 1000); noise(0.16, 0.16, 2400); },
+  skill3(){ noise(0.30, 0.20, 1600); tone(200, 0.30, 'sine', 0.20, 50); tone(520, 0.22, 'triangle', 0.12, 1000); },
+  jump(){ tone(300, 0.12, 'sine', 0.12, 560); },
+  dodge(){ noise(0.14, 0.12, 1800); tone(260, 0.10, 'sine', 0.10, 80); },
+  beamCharge(){ tone(180, 0.80, 'sawtooth', 0.10, 900); },
+  beam(){ noise(0.25, 0.22, 1100); tone(90, 0.25, 'sawtooth', 0.18, 40); },
+  slap(){ noise(0.10, 0.22, 700); tone(130, 0.12, 'square', 0.20, 50); },
+  hurt(){ noise(0.10, 0.24, 600); tone(120, 0.15, 'square', 0.18, 50); },
+  pickup(){ tone(660, 0.10, 'sine', 0.14, 990); tone(990, 0.12, 'sine', 0.12, 1320); },
+  bossDie(){ noise(0.40, 0.30, 900); tone(70, 0.50, 'sawtooth', 0.20, 30); },
+  die(){ noise(0.30, 0.24, 500); tone(200, 0.50, 'sawtooth', 0.20, 40); }
+};
+
+/* ---------- 打击反馈 / 特效 ---------- */
+let slashes = [];   // 剑光弧线
+let rings = [];     // 冲击波
+let popups = [];    // 伤害数字
+let shake = 0;      // 屏幕震动
+let hitstop = 0;    // 顿帧
+function addSlash(x,y,dir,size,color){ slashes.push({x:x,y:y,dir:dir,size:size,color:color||'#dffaff',life:0.18,maxLife:0.18}); }
+function addRing(x,y,color,maxR){ rings.push({x:x,y:y,r:6,maxR:maxR||42,color:color||'#ffffff',life:0.28,maxLife:0.28}); }
+function addPopup(x,y,text,color){ popups.push({x:x,y:y,text:text,color:color||'#ffd27a',life:0.7,maxLife:0.7}); }
+function addShake(v){ shake = Math.max(shake, v); }
+function addHitstop(v){ hitstop = Math.max(hitstop, v); }
+function updateEffects(dt){
+  for(let i=slashes.length-1;i>=0;i--){ slashes[i].life -= dt; if(slashes[i].life<=0) slashes.splice(i,1); }
+  for(let i=rings.length-1;i>=0;i--){ const p=rings[i]; p.life-=dt; p.r += (p.maxR-p.r)*dt*8; if(p.life<=0) rings.splice(i,1); }
+  for(let i=popups.length-1;i>=0;i--){ const p=popups[i]; p.life-=dt; p.y-=28*dt; if(p.life<=0) popups.splice(i,1); }
+}
+
 /* ---------- 全局状态 ---------- */
 const S = {
   boot:0, introText:1, playerEntry:2, bossEntry:3,
@@ -278,12 +344,14 @@ function resetRun(){
     state:'idle', stateT:0,
     beamCd:2.2, slapCd:1.4,
     moveT:0, targetX:780,
-    eyeGlow:0
+    eyeGlow:0, hitFlash:0
   };
   projectiles = [];
   particles = [];
   healthpacks = [];
   hitmarks = [];
+  slashes = []; rings = []; popups = [];
+  shake = 0; hitstop = 0;
   hpTimer = 45;
 }
 
@@ -305,14 +373,18 @@ const SKILLS = [
 ];
 
 function tryAttack(){
+  ensureAudio();
   if(mode !== S.fight || player.state==='dead') return;
   if(player.atkCd > 0) return;
   player.atkCd = 0.30;
   player.state = 'attack'; player.stateT = 0;
+  SFX.swing();
+  addSlash(player.x + player.facing*24, player.y-34, player.facing, 40, '#eef6ff');
   spark(player.x + player.facing*30, player.y-30, '#e8e0cc', 6);
 }
 
 function trySkill(i){
+  ensureAudio();
   if(mode !== S.fight || player.state==='dead') return;
   const s = SKILLS[i];
   if(player.skillCd[i] > 0) return;
@@ -321,13 +393,17 @@ function trySkill(i){
   player.skillCd[i] = s.cd;
   const fx = player.x + player.facing*24, fy = player.y-32;
   if(s.kind === 'wave'){
+    SFX.skill1();
     projectiles.push({ type:'wave', x:fx, y:fy, vx:player.facing*470, vy:0, dmg:s.dmg, life:1.4, wid:30, hit:false });
     player.state='attack'; player.stateT=0;
+    addSlash(fx, fy, player.facing, 70, '#7fe3ff');
     glow(fx, fy, '#7fe3ff', 14);
   } else if(s.kind === 'thrust'){
+    SFX.skill2();
     player.state='skill'; player.stateT=0; player.skill = i;
     player.dashing = 0.18; player.invuln = Math.max(player.invuln, 0.3);
     player.vx = player.facing*560;
+    addSlash(fx, fy, player.facing, 130, '#b8f7ff');
     // 突刺立即结算伤害（朝前方刀光范围）
     const hxx = player.facing>0 ? player.x : player.x - 104;
     if(boss && boss.state!=='dying' && aabb(hxx, player.y-56, 104, 56, boss.x-boss.w/2, boss.y-boss.h/2, boss.w, boss.h)){
@@ -335,6 +411,7 @@ function trySkill(i){
     }
     glow(fx, fy, '#b8f7ff', 26);
   } else if(s.kind === 'rain'){
+    SFX.skill3();
     player.state='skill'; player.stateT=0; player.skill = i;
     // 万剑：在 boss 区域落下剑雨
     for(let k=0;k<12;k++){
@@ -350,14 +427,17 @@ function trySkill(i){
 }
 
 function tryJump(){
+  ensureAudio();
   if(mode !== S.fight || player.state==='dead') return;
   if(!player.onGround) return;
   player.vy = -640; player.onGround = false;
   player.state = 'jump';
+  SFX.jump();
   spark(player.x, player.y, '#cbbf9d', 4);
 }
 
 function tryDodge(){
+  ensureAudio();
   if(mode !== S.fight || player.state==='dead') return;
   if(player.dodgeCd > 0) return;
   let dir = player.facing;
@@ -367,14 +447,22 @@ function tryDodge(){
   player.invuln = Math.max(player.invuln, 0.32);
   player.vx = dir * 620; player.facing = dir;
   player.state = 'dodge'; player.stateT = 0;
+  SFX.dodge();
+  addRing(player.x, player.y-30, '#9fd8ff', 34);
   spark(player.x, player.y-30, '#9fd8ff', 8);
 }
 
 /* ---------- 伤害 ---------- */
 function damageBoss(amt, atX, atY){
   if(!boss || boss.state==='dying') return;
-  boss.hp -= amt; boss.eyeGlow = 0.15;
-  if(atX!==undefined && atY!==undefined) spark(atX, atY, '#ff5a4a', 8);
+  boss.hp -= amt; boss.eyeGlow = 0.15; boss.hitFlash = 0.12;
+  SFX.hit();
+  addShake(3); addHitstop(0.045);
+  const px = atX!==undefined ? atX : boss.x;
+  const py = atY!==undefined ? atY : boss.y;
+  spark(px, py, '#ff5a4a', 9);
+  addRing(px, py, '#ffca7a', 40);
+  addPopup(px, py - 50, '-' + Math.round(amt), '#ffd27a');
   if(boss.hp <= 0){ boss.hp = 0; onBossDefeat(); }
 }
 
@@ -382,8 +470,12 @@ function damagePlayer(amt){
   if(player.invuln > 0 || player.state==='dead') return;
   player.hp -= amt;
   player.invuln = 0.55;
-  player.hitFlash = 0.16;
-  spark(player.x, player.y-28, '#ff3a3a', 8);
+  player.hitFlash = 0.18;
+  SFX.hurt();
+  addShake(4); addHitstop(0.05);
+  spark(player.x, player.y-28, '#ff3a3a', 9);
+  addRing(player.x, player.y-28, '#ff4a4a', 36);
+  addPopup(player.x, player.y - 64, '-' + Math.round(amt), '#ff7a7a');
   if(player.hp <= 0){ player.hp = 0; onPlayerDeath(); }
 }
 
@@ -417,6 +509,10 @@ function onBossDefeat(){
   kills += 1;
   mode = S.bossDefeat; modeT = 0;
   flash('你既是我，我亦是你', { dur:2.2 });
+  SFX.bossDie();
+  addShake(8);
+  addRing(boss.x, boss.y, '#ffdf7a', 120);
+  addPopup(boss.x, boss.y - 70, '击败', '#ffdf7a');
   // 奖励：回复到底、上限提升
   player.maxHp += 1; player.maxMana += 1;
   player.hp = player.maxHp; player.mana = player.maxMana;
@@ -442,6 +538,8 @@ function onPlayerDeath(){
   localStorage.setItem('duhao_first', '1');
   player.state = 'dead';
   mode = S.playerDeath; modeT = 0;
+  SFX.die();
+  addShake(6);
   flash('不够豪', { bg:true, dur:1.8 });
   setTimeout(function(){ showMenu(); }, 1850);
 }
@@ -519,6 +617,10 @@ function updateFight(dt){
   P.dodgeCd = Math.max(0, P.dodgeCd - dt);
   for(let i=0;i<3;i++) P.skillCd[i] = Math.max(0, P.skillCd[i]-dt);
   P.mana = Math.min(P.maxMana, P.mana + dt*1.0);
+  // 技能按钮冷却 / 蓝耗反馈
+  document.getElementById('sk1').disabled = (P.skillCd[0] > 0 || P.mana < SKILLS[0].cost);
+  document.getElementById('sk2').disabled = (P.skillCd[1] > 0 || P.mana < SKILLS[1].cost);
+  document.getElementById('sk3').disabled = (P.skillCd[2] > 0 || P.mana < SKILLS[2].cost);
 
   let move = 0;
   if(input.left) move -= 1;
@@ -605,6 +707,9 @@ function updateFight(dt){
     const h = healthpacks[i]; h.t += dt;
     if(aabb(P.x-P.w/2, P.y-P.h, P.w, P.h, h.x-14, h.y-12, 28, 24)){
       P.hp = Math.min(P.maxHp, P.hp + 20);
+      SFX.pickup();
+      addRing(h.x, h.y, '#7dff8a', 34);
+      addPopup(h.x, h.y - 18, '+20', '#7dff8a');
       glow(h.x, h.y, '#7dff8a', 12);
       healthpacks.splice(i,1);
     }
@@ -614,6 +719,7 @@ function updateFight(dt){
 function updateBoss(dt){
   const B = boss;
   B.eyeGlow = Math.max(0, B.eyeGlow - dt);
+  B.hitFlash = Math.max(0, B.hitFlash - dt);
   const P = player;
   const dist = Math.abs(B.x - P.x);
   B.stateT += dt;
@@ -637,12 +743,17 @@ function updateBoss(dt){
     // 远程 → 光束
     else if(B.beamCd <= 0){
       B.state='charge'; B.stateT=0;
+      SFX.beamCharge();
     }
     B.beamCd -= dt; B.slapCd -= dt;
   }
   else if(B.state === 'charge'){
     B.y = GROUND-140 + Math.sin(time*2)*8;
-    if(B.stateT > 0.9){ B.state='beam'; B.stateT=0; B.beamHit=false; B.beamDir = B.x < P.x ? 1 : -1; }
+    if(B.stateT > 0.9){
+      B.state='beam'; B.stateT=0; B.beamHit=false; B.beamDir = B.x < P.x ? 1 : -1;
+      SFX.beam();
+      addShake(3);
+    }
   }
   else if(B.state === 'beam'){
     B.y = GROUND-140 + Math.sin(time*2)*8;
@@ -665,6 +776,9 @@ function updateBoss(dt){
       // 命中窗口
       if(t > 0.55 && t < 0.72 && B.slapIndex !== B._slapHit){
         B._slapHit = B.slapIndex;
+        SFX.slap();
+        addShake(2);
+        addRing(B.slapTargetX, GROUND-10, '#c8b49a', 60);
         if(Math.abs(P.x - B.slapTargetX) < 80 && P.onGround){
           damagePlayer(B.slapAtk);
         }
@@ -684,6 +798,11 @@ function updateBoss(dt){
    绘制
    ========================================================= */
 function draw(){
+  const shaking = player && boss && shake > 0;
+  if(shaking){
+    ctx.save();
+    ctx.translate((Math.random()-0.5)*shake*2, (Math.random()-0.5)*shake*2);
+  }
   // 背景
   const sky = ctx.createLinearGradient(0,0,0,GROUND);
   sky.addColorStop(0,'#1a1d2b');
@@ -751,6 +870,46 @@ function draw(){
   }
   ctx.globalAlpha = 1;
 
+  // 剑光弧线
+  for(const s of slashes){
+    const a = Math.max(0, s.life/s.maxLife);
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.translate(s.x, s.y);
+    ctx.fillStyle = s.color;
+    ctx.beginPath();
+    ctx.moveTo(0, -s.size*0.15);
+    ctx.quadraticCurveTo(s.dir*s.size*0.7, -s.size*0.35, s.dir*s.size, 0);
+    ctx.quadraticCurveTo(s.dir*s.size*0.7, s.size*0.35, 0, s.size*0.15);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // 冲击波
+  for(const rg of rings){
+    const a = Math.max(0, rg.life/rg.maxLife);
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.strokeStyle = rg.color; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(rg.x, rg.y, rg.r, 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+
+  // 伤害数字
+  ctx.textAlign = 'center';
+  for(const p of popups){
+    const a = Math.max(0, p.life/p.maxLife);
+    ctx.globalAlpha = a;
+    ctx.font = 'bold 18px "KaiTi","SimSun",serif';
+    ctx.fillStyle = p.color;
+    ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.lineWidth = 3;
+    ctx.strokeText(p.text, p.x, p.y);
+    ctx.fillText(p.text, p.x, p.y);
+  }
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'left';
+
   // 入场剑芒提示
   if(mode===S.playerEntry){
     const g = ctx.createRadialGradient(player.x,player.y-30,2,player.x,player.y-30,70);
@@ -758,6 +917,7 @@ function draw(){
     ctx.fillStyle=g; ctx.beginPath(); ctx.arc(player.x,player.y-30,70,0,Math.PI*2); ctx.fill();
   }
 
+  if(shaking) ctx.restore();
   drawHUD();
 }
 
@@ -905,6 +1065,12 @@ function drawBoss(){
     ctx.fillStyle=g; ctx.beginPath(); ctx.arc(core,y-8,20+p*10,0,Math.PI*2); ctx.fill();
   }
 
+  // 受击闪白
+  if(B.hitFlash > 0){
+    ctx.fillStyle = 'rgba(255,255,255,' + Math.min(0.8, B.hitFlash/0.12*0.8).toFixed(2) + ')';
+    ctx.fillRect(x-hw, y-hh, B.w, B.h);
+  }
+
   ctx.globalAlpha = 1;
 }
 
@@ -983,7 +1149,10 @@ let last = performance.now();
 function loop(now){
   let dt = (now-last)/1000; last = now;
   if(dt > 0.05) dt = 0.05;
+  if(hitstop > 0){ hitstop -= dt; dt = 0; }
+  if(shake > 0.1){ shake *= 0.86; } else { shake = 0; }
   update(dt);
+  updateEffects(dt);
   draw();
   requestAnimationFrame(loop);
 }
@@ -992,6 +1161,8 @@ function loop(now){
    输入绑定
    ========================================================= */
 const keys = {};
+window.addEventListener('pointerdown', ensureAudio);
+window.addEventListener('keydown', ensureAudio);
 window.addEventListener('keydown', function(e){
   const k = e.key;
   if(k==='ArrowLeft'||k==='a'||k==='A'){ input.left=true; e.preventDefault(); }
