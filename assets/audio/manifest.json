@@ -1,0 +1,19 @@
+{
+  "laser_fire": "laser_fire.wav",
+  "reflect": "reflect.wav",
+  "boss_hit": "boss_hit.wav",
+  "boss_death": "boss_death.wav",
+  "title_fall": "title_fall.wav",
+  "revive": "revive.wav",
+  "stinger": "stinger.wav",
+  "death": "death.wav",
+  "ult_ready": "ult_ready.wav",
+  "ui_hover": "ui_hover.ogg",
+  "ui_click": "ui_click.ogg",
+  "ui_back": "ui_back.ogg",
+  "floor_clear": "floor_clear.ogg",
+  "banner": "banner.ogg",
+  "credits": "credits.ogg",
+  "reflect_fail": "reflect_fail.ogg",
+  "ambience_rain": "ambience_rain.ogg"
+}

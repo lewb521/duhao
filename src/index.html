@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<title>嘟豪</title>
+<style>
+  @font-face{font-family:"DHFont";src:url("../assets/font/DHFont.woff2") format("woff2");font-weight:700 900;font-style:normal;font-display:block;}
+</style>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ 主界面 ============ -->
+  <section id="menu" class="screen menu-screen">
+    <div class="menu-ink" aria-hidden="true"></div>
+    <div class="menu-paper" aria-hidden="true"></div>
+
+    <div class="menu-top">
+      <button id="btn-mute" class="icon-btn" aria-label="声音开关"><span class="mute-glyph">♪</span></button>
+      <div class="stats">
+        <div class="stat-line">历史最佳 <b id="stat-best">0</b> <i>层</i></div>
+        <div class="stat-line">上场层数 <b id="stat-last">0</b> <i>层</i></div>
+      </div>
+    </div>
+
+    <div class="menu-brand-zone">
+      <div id="brand-slot-menu" class="brand-slot"></div>
+      <button id="dev-icon" class="dev-icon" aria-label="灵力开发">
+        <span class="dev-ring"></span>
+        <span class="dev-txt"><b>灵</b><b>力</b><b>开</b><b>发</b></span>
+      </button>
+    </div>
+
+    <div class="menu-buttons">
+      <button id="btn-start" class="menu-btn start-btn">开始游戏</button>
+      <button id="btn-about" class="menu-btn about-btn">关于</button>
+    </div>
+
+  </section>
+
+  <!-- ============ 关于 ============ -->
+  <section id="about" class="screen about-screen hidden">
+    <div class="about-inner">
+      <div class="about-head">
+        <div class="about-title">关于</div>
+        <button id="btn-about-close" class="icon-btn about-close" aria-label="关闭">✕</button>
+      </div>
+      <div class="about-scroll">
+        <div class="about-hero">
+          <div class="about-badge" aria-hidden="true"></div>
+          <div>
+            <div class="about-name">灵力开发</div>
+            <div class="about-sub">作者 · 字幕 · 音效 · 动画</div>
+          </div>
+        </div>
+        <div class="about-block">
+          <div class="about-h">联系</div>
+          <a class="about-link" id="link-github" href="https://github.com/lewb521" target="_blank" rel="noopener">github.com/lewb521</a>
+          <a class="about-link" id="link-mail" href="mailto:lewbtxdy@outlook.com">lewbtxdy@outlook.com</a>
+        </div>
+        <div class="about-block">
+          <div class="about-h">音效参考仓库</div>
+          <div id="about-repos" class="about-repos"></div>
+        </div>
+        <div class="about-block">
+          <div class="about-h">致谢</div>
+          <div id="about-thanks" class="about-thanks"></div>
+        </div>
+        <div class="about-block about-thanks-oss">
+          <div class="about-h">开源事业</div>
+          <p>感谢每一位玩家、每一个参考仓库、以及所有坚持把工具与作品开源的人。没有你们，就不会有这些作品。</p>
+        </div>
+        <div class="about-foot">v1.0 · 灵力开发</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 游戏 ============ -->
+  <section id="game" class="screen game-screen hidden">
+    <canvas id="scene" class="scene"></canvas>
+    <div class="game-fog" aria-hidden="true"></div>
+    <div class="game-vignette" aria-hidden="true"></div>
+    <div id="damage-flash" class="damage-flash" aria-hidden="true"></div>
+
+    <div class="hud">
+      <div class="hud-top-left">
+        <div class="floor-chip"><span class="floor-label">第</span><span id="hud-floor" class="floor-num">1</span><span class="floor-label">层</span></div>
+        <div id="hud-arc" class="arc-name">相识之幕 · 敌意</div>
+      </div>
+      <div class="boss-bar-wrap">
+        <div class="boss-meta"><span class="boss-name">肚耗</span><span id="boss-hp-txt" class="boss-hp-txt">100</span></div>
+        <div class="boss-bar"><div id="boss-hp-fill" class="boss-hp-fill"></div><div class="boss-bar-ghost"></div></div>
+      </div>
+      <div class="hud-top-right">
+        <div id="brand-slot-game" class="brand-slot brand-slot-game"></div>
+        <button id="btn-exit" class="exit-btn" aria-label="退出">✕</button>
+      </div>
+      <div class="hero-status">
+        <div class="hero-hp"><div id="hero-hp-fill"></div></div>
+        <div class="hero-hp-label">生命</div>
+        <div class="charge-pips" id="charge-pips"></div>
+      </div>
+      <div class="combo-chip" id="combo-chip">反弹 ×0</div>
+    </div>
+
+    <div id="subtitle" class="subtitle hidden">
+      <div class="sub-speaker" id="sub-speaker">肚耗</div>
+      <div class="sub-text" id="sub-text"></div>
+    </div>
+
+    <div class="action-dock">
+      <button id="btn-ult" class="action-btn ult-btn" disabled>
+        <span class="ult-ring"></span><span class="ult-glyph">靈</span>
+      </button>
+      <button id="btn-reflect" class="action-btn reflect-btn">
+        <span class="reflect-ring"></span><span class="reflect-glyph">弹</span>
+      </button>
+    </div>
+
+    <div id="banner" class="banner hidden"><div class="banner-main" id="banner-main">地狱归来</div><div class="banner-sub" id="banner-sub">血肉重铸 · 血量 +20%</div></div>
+    <div id="floor-title" class="floor-title hidden"><div class="ft-num" id="ft-num">第 1 层</div><div class="ft-arc" id="ft-arc">相识之幕</div></div>
+    <div id="pause" class="pause hidden">
+      <div class="pause-title">塔内无昼夜</div>
+      <div class="pause-sub" id="pause-sub">第 1 层 · 记忆将保留</div>
+      <button id="btn-resume" class="pause-btn">继续</button>
+      <button id="btn-quit" class="pause-btn ghost">退出到主界面</button>
+    </div>
+  </section>
+
+  <!-- ============ 结局电影 ============ -->
+  <section id="cinematic" class="screen cinematic-screen hidden">
+    <canvas id="cine-canvas" class="cine-canvas"></canvas>
+    <div class="cine-bar top" aria-hidden="true"></div>
+    <div class="cine-bar bottom" aria-hidden="true"></div>
+    <div id="cine-sub" class="cine-sub hidden"><div class="cine-speaker" id="cine-speaker"></div><div class="cine-text" id="cine-text"></div></div>
+    <div class="cine-skip" id="cine-skip">点击跳过</div>
+  </section>
+
+  <!-- ============ 字幕/黑屏/滚动 ============ -->
+  <section id="credits" class="screen credits-screen hidden">
+    <div class="credits-black"></div>
+    <div id="credits-roll" class="credits-roll"></div>
+    <div class="credits-end" id="credits-end"></div>
+  </section>
+
+  <!-- ============ 全局招牌（一镜到底核心） ============ -->
+  <div id="toast" class="toast hidden"></div>
+
+  <div id="brand-layer" class="brand-layer" aria-hidden="true">
+    <div id="brand-ghost" class="brand-wrap ghost"><div class="brand-rope"></div><img class="brand-img" data-tone="ink" alt=""><img class="brand-img" data-tone="light" alt=""></div>
+    <div id="brand" class="brand-wrap"><div class="brand-rope"></div><div class="brand-knot"></div><img class="brand-img" data-tone="ink" alt=""><img class="brand-img" data-tone="light" alt=""></div>
+  </div>
+
+  <div id="blackout" class="blackout" aria-hidden="true"></div>
+  <div id="blur-mask" class="blur-mask" aria-hidden="true"></div>
+  <div id="boot" class="boot-screen">
+    <div class="boot-name">嘟豪</div>
+    <div class="boot-line"><span id="boot-txt">灵力开发</span></div>
+  </div>
+</div>
+
+<script src="js/data/dialogues.js"></script>
+<script src="js/data/lore.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/hero.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/brand.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/menu.js"></script>
+<script src="js/game.js"></script>
+<script src="js/cinematic.js"></script>
+<script src="js/fit.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
